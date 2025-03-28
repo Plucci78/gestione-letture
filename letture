@@ -1,0 +1,559 @@
+// Configurazione principale
+const CONFIG = {
+  SPREADSHEET_ID: '1GKqcZWPSi7mq7s8Ht-IRwCK641p82xoIplMwixIxfFw',
+  SHEETS: {
+    LETTURE: 'Letture',
+    APPARTAMENTI: 'Appartamenti',
+    CONDOMINI: 'Condomini'
+  }
+};
+
+// Funzione per includere file HTML esterni
+function include(filename) {
+  console.log("Tentativo di includere file:", filename);
+  
+  try {
+    // Gestione specifica per ViewLetture
+    if (filename === 'ViewLetture') {
+      return includeJsModal();
+    }
+    
+    // Per altri file, prova a caricarli normalmente
+    const file = HtmlService.createHtmlOutputFromFile(filename);
+    console.log("File trovato e caricato:", !!file);
+    return file.getContent();
+  } catch (error) {
+    console.error("Errore dettagliato in include:", error);
+    console.log("Nome file utilizzato:", filename);
+    return ''; // Restituisce una stringa vuota in caso di errore
+  }
+}
+// Funzione doGet per gestire le richieste HTTP GET
+function doGet(e) {
+  return HtmlService.createTemplateFromFile('ViewLetture')
+    .evaluate()
+    .setTitle('Letture Contatori')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Funzioni helper per il parsing sicuro
+function safeParseDate(dateValue) {
+  if (dateValue instanceof Date) return dateValue;
+  
+  try {
+    const parsedDate = new Date(dateValue);
+    return isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+  } catch {
+    return new Date();
+  }
+}
+
+function safeParseFloat(value, defaultValue = 0) {
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
+// Funzione per ottenere tutte le letture contatori
+function getLetture() {
+  try {
+    console.log("Inizio funzione getLetture()");
+    
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEETS.LETTURE);
+    
+    console.log("Foglio Letture trovato:", !!sheet);
+    
+    // Se il foglio non esiste, lo crea
+    if (!sheet) {
+      console.log("Creazione nuovo foglio Letture");
+      const newSheet = ss.insertSheet(CONFIG.SHEETS.LETTURE);
+      newSheet.appendRow([
+        'ID', 'Appartamento IC', 'Tipo', 'Data Lettura', 
+        'Valore', 'Metodo', 'Immagine URL', 'Note', 'Data Creazione'
+      ]);
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    
+    console.log("Numero totale di righe:", data.length);
+    
+    // Se ci sono solo le intestazioni, ritorna un array vuoto
+    if (data.length <= 1) {
+      console.log("Solo intestazioni nel foglio");
+      return [];
+    }
+    
+    // Mappa i dati in un array di oggetti
+    const letture = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      
+      // Verifica che ci sia un ID
+      if (!row[0]) {
+        console.log(`Riga ${i} senza ID, saltata`);
+        continue;
+      }
+      
+      try {
+        const lettura = {
+          id: String(row[0]),
+          appartamentoId: String(row[1] || ''),
+          tipoContatore: String(row[2] || ''),
+          data: safeParseDate(row[3]),
+          lettura: safeParseFloat(row[4], 0),
+          metodo: String(row[5] || 'manuale'),
+          immagineUrl: String(row[6] || ''),
+          note: String(row[7] || ''),
+          dataCreazione: safeParseDate(row[8])
+        };
+        
+        console.log(`Elaborazione lettura riga ${i}:`, JSON.stringify(lettura));
+        
+        // Ottieni i dati dell'appartamento per trovare il condominio
+        const appartamentoInfo = getApartmentById(lettura.appartamentoId);
+        lettura.condominioId = appartamentoInfo.success 
+          ? appartamentoInfo.apartment.condominiumId 
+          : "sconosciuto";
+        
+        console.log(`Condominio per appartamento ${lettura.appartamentoId}:`, lettura.condominioId);
+        
+        // Calcola consumo e lettura precedente
+        const letturaPrecedente = getUltimaLetturaPrecedente(
+          lettura.appartamentoId, 
+          lettura.tipoContatore, 
+          lettura.data
+        );
+        
+        lettura.letturaPrecedente = letturaPrecedente 
+          ? letturaPrecedente.lettura 
+          : 0;
+        
+        lettura.consumo = lettura.lettura - lettura.letturaPrecedente;
+        
+        console.log(`Lettura precedente: ${lettura.letturaPrecedente}, Consumo: ${lettura.consumo}`);
+        
+        letture.push(lettura);
+        
+      } catch (rowError) {
+        console.error(`Errore nell'elaborazione della riga ${i+1}:`, rowError);
+      }
+    }
+    
+    console.log(`Numero di letture elaborate: ${letture.length}`);
+    
+    // Ordina le letture per data (più recente prima)
+    const lettureOrdinate = letture.sort((a, b) => b.data - a.data);
+    
+    return lettureOrdinate;
+    
+  } catch (error) {
+    console.error("Errore completo in getLetture:", error);
+    return [];
+  }
+}
+
+// Funzione per ottenere un appartamento per ID
+function getApartmentById(apartmentId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const apartmentsSheet = ss.getSheetByName(CONFIG.SHEETS.APPARTAMENTI);
+    
+    if (!apartmentsSheet) {
+      console.log("Foglio Appartamenti non trovato");
+      return { success: false, error: 'Foglio Appartamenti non trovato' };
+    }
+    
+    const apartmentsData = apartmentsSheet.getDataRange().getValues();
+    
+    // Cerca l'appartamento con l'ID specificato
+    let apartment = null;
+    for (let i = 1; i < apartmentsData.length; i++) {
+      if (apartmentsData[i][0] === apartmentId) {
+        apartment = {
+          id: apartmentsData[i][0],
+          condominiumId: apartmentsData[i][1],
+          number: apartmentsData[i][2],
+          floor: apartmentsData[i][3],
+          size: apartmentsData[i][4],
+          owner: apartmentsData[i][5],
+          fiscalCode: apartmentsData[i][6],
+          email: apartmentsData[i][7],
+          phone: apartmentsData[i][8],
+          residents: apartmentsData[i][9],
+          type: apartmentsData[i][10],
+          notes: apartmentsData[i][11]
+        };
+        break;
+      }
+    }
+    
+    if (!apartment) {
+      return { success: false, error: 'Appartamento non trovato' };
+    }
+    
+    return { success: true, apartment: apartment };
+  } catch (error) {
+    console.error("Errore in getApartmentById:", error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+// Funzione per ottenere l'ultima lettura precedente di un determinato tipo per un appartamento
+function getUltimaLetturaPrecedente(apartmentId, tipoContatore, dataAttuale) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEETS.LETTURE);
+    
+    if (!sheet) return null;
+    
+    const data = sheet.getDataRange().getValues();
+    const letture = [];
+    
+    // Converti dataAttuale in un oggetto Date
+    const dataRif = new Date(dataAttuale);
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[0] && row[1] === apartmentId && row[2] === tipoContatore) {
+        const dataLettura = new Date(row[3]);
+        
+        // Considera solo le letture precedenti alla data di riferimento
+        if (dataLettura < dataRif) {
+          letture.push({
+            id: row[0],
+            appartamentoId: row[1],
+            tipoContatore: row[2],
+            data: dataLettura,
+            lettura: safeParseFloat(row[4]),
+            metodo: row[5],
+            immagineUrl: row[6],
+            note: row[7],
+            dataCreazione: row[8] ? new Date(row[8]) : null
+          });
+        }
+      }
+    }
+    
+    // Ordina le letture per data (più recente prima)
+    letture.sort((a, b) => b.data - a.data);
+    
+    return letture.length > 0 ? letture[0] : null;
+  } catch (error) {
+    console.error("Errore in getUltimaLetturaPrecedente:", error);
+    return null;
+  }
+}
+
+// Funzione per ottenere l'ultima lettura di un determinato tipo per un appartamento
+function getUltimaLettura(apartmentId, tipoContatore) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEETS.LETTURE);
+    
+    if (!sheet) return null;
+    
+    const data = sheet.getDataRange().getValues();
+    const letture = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[0] && row[1] === apartmentId && row[2] === tipoContatore) {
+        letture.push({
+          id: row[0],
+          appartamentoId: row[1],
+          tipoContatore: row[2],
+          data: new Date(row[3]),
+          lettura: safeParseFloat(row[4]),
+          metodo: row[5],
+          immagineUrl: row[6],
+          note: row[7],
+          dataCreazione: row[8] ? new Date(row[8]) : null
+        });
+      }
+    }
+    
+    // Ordina le letture per data (più recente prima)
+    letture.sort((a, b) => b.data - a.data);
+    
+    return letture.length > 0 ? letture[0] : null;
+  } catch (error) {
+    console.error("Errore in getUltimaLettura:", error);
+    return null;
+  }
+}
+
+// Funzione per aggiungere una nuova lettura
+function addLettura(formData) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    let sheet = ss.getSheetByName(CONFIG.SHEETS.LETTURE);
+    
+    // Se il foglio non esiste, lo crea
+    if (!sheet) {
+      sheet = ss.insertSheet(CONFIG.SHEETS.LETTURE);
+      sheet.appendRow([
+        'ID', 'Appartamento IC', 'Tipo', 'Data Lettura', 
+        'Valore', 'Metodo', 'Immagine URL', 'Note', 'Data Creazione'
+      ]);
+    }
+    
+    // Genera un ID univoco
+    const id = Utilities.getUuid();
+    
+    // Data di creazione
+    const now = new Date().toISOString();
+    
+    // Ottieni l'ultima lettura per calcolare il consumo
+    const ultimaLettura = getUltimaLettura(formData.appartamentoId, formData.tipoContatore);
+    const letturaPrecedente = ultimaLettura ? ultimaLettura.lettura : 0;
+    const consumo = safeParseFloat(formData.lettura) - letturaPrecedente;
+    
+    // Determina il metodo (manuale o scansione)
+    const metodo = formData.immagine ? 'scansione' : 'manuale';
+    
+    // Gestione dell'immagine se presente
+    let immagineUrl = '';
+    if (formData.immagine && formData.immagine.length > 0) {
+      // Salva l'immagine in Drive
+      immagineUrl = salvaImmagine(formData.immagine, id);
+    }
+    
+    // Aggiungi la riga con i dati
+    sheet.appendRow([
+      id,
+      formData.appartamentoId,
+      formData.tipoContatore,
+      new Date(formData.data),
+      safeParseFloat(formData.lettura),
+      metodo,
+      immagineUrl,
+      formData.note || '',
+      now
+    ]);
+    
+    return { 
+      success: true, 
+      id: id, 
+      consumo: consumo,
+      message: "Lettura registrata con successo" 
+    };
+  } catch (error) {
+    console.error("Errore in addLettura:", error);
+    return { 
+      success: false, 
+      error: error.toString()
+    };
+  }
+}
+
+// Funzione per salvare un'immagine in Drive e restituire l'URL
+function salvaImmagine(base64Data, letturaId) {
+  try {
+    // Rimuovi l'intestazione del data URL
+    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    
+    if (!matches || matches.length !== 3) {
+      return '';
+    }
+    
+    const contentType = matches[1];
+    const base64EncodedData = matches[2];
+    const blob = Utilities.newBlob(
+      Utilities.base64Decode(base64EncodedData), 
+      contentType, 
+      'lettura_' + letturaId + '.jpg'
+    );
+    
+    // Crea una cartella per le letture se non esiste
+    let folder;
+    const folderIterator = DriveApp.getFoldersByName('Letture Contatori');
+    
+    folder = folderIterator.hasNext() 
+      ? folderIterator.next() 
+      : DriveApp.createFolder('Letture Contatori');
+    
+    // Salva il file nella cartella
+    const file = folder.createFile(blob);
+    return file.getUrl();
+  } catch (error) {
+    console.error("Errore in salvaImmagine:", error);
+    return '';
+  }
+}
+
+// Funzione per ottenere tutti i condomini (continuazione)
+function getCondominiums() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEETS.CONDOMINI);
+    
+    if (!sheet) {
+      console.log("Foglio Condomini non trovato");
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    
+    // Controlla se ci sono dati oltre le intestazioni
+    if (data.length <= 1) {
+      console.log("Nessun dato nel foglio Condomini oltre le intestazioni");
+      return [];
+    }
+    
+    // Mappa i dati in un array di oggetti
+    const condominiums = [];
+    
+    // Salta la riga di intestazione
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[0]) { // Se c'è un ID (prima colonna)
+        const condo = {
+          id: row[0],
+          name: row[1] || 'Condominio ' + i,
+          address: row[2] || '',
+          city: row[3] || '',
+          zip: row[4] || '',
+          admin: row[5] || '',
+          email: row[6] || '',
+          phone: row[7] || '',
+          fiscalCode: row[8] || '',
+          notes: row[9] || ''
+        };
+        condominiums.push(condo);
+      }
+    }
+    
+    console.log("Condomini trovati: " + condominiums.length);
+    return condominiums;
+  } catch (error) {
+    console.error("Errore in getCondominiums:", error);
+    return [];
+  }
+}
+
+// Funzione per ottenere tutti gli appartamenti
+function getApartments() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const apartmentsSheet = ss.getSheetByName(CONFIG.SHEETS.APPARTAMENTI);
+    const condominiumsSheet = ss.getSheetByName(CONFIG.SHEETS.CONDOMINI);
+    
+    // Verifica se i fogli esistono
+    if (!apartmentsSheet) {
+      console.log("Foglio Appartamenti non trovato");
+      return { apartments: [], condominiums: [] };
+    }
+    
+    if (!condominiumsSheet) {
+      console.log("Foglio Condomini non trovato");
+      return { apartments: [], condominiums: [] };
+    }
+    
+    // Ottieni i dati degli appartamenti
+    const apartmentsData = apartmentsSheet.getDataRange().getValues();
+    
+    // Ottieni i dati dei condomini
+    const condominiumsData = condominiumsSheet.getDataRange().getValues();
+    
+    // Salta le righe di intestazione e mappa i dati
+    const apartments = [];
+    for (let i = 1; i < apartmentsData.length; i++) {
+      const row = apartmentsData[i];
+      if (row[0]) { // Se c'è un ID (prima colonna)
+        const apt = {
+          id: row[0],
+          condominiumId: row[1] || '',
+          number: row[2] || 'Apt ' + i,
+          floor: row[3] || '',
+          size: row[4] || 0,
+          owner: row[5] || 'Proprietario',
+          fiscalCode: row[6] || '',
+          email: row[7] || '',
+          phone: row[8] || '',
+          residents: row[9] || 0,
+          type: row[10] || '',
+          notes: row[11] || ''
+        };
+        apartments.push(apt);
+      }
+    }
+    
+    // Mappa i condomini in un array di oggetti
+    const condominiums = [];
+    for (let i = 1; i < condominiumsData.length; i++) {
+      const row = condominiumsData[i];
+      if (row[0]) { // Se c'è un ID (prima colonna)
+        const condo = {
+          id: row[0],
+          name: row[1] || 'Condominio ' + i,
+          address: row[2] || '',
+          city: row[3] || '',
+          zip: row[4] || '',
+          admin: row[5] || '',
+          email: row[6] || '',
+          phone: row[7] || '',
+          fiscalCode: row[8] || '',
+          notes: row[9] || ''
+        };
+        condominiums.push(condo);
+      }
+    }
+    
+    console.log("Appartamenti trovati: " + apartments.length);
+    console.log("Condomini trovati: " + condominiums.length);
+    
+    return {
+      apartments: apartments,
+      condominiums: condominiums
+    };
+  } catch (error) {
+    console.error("Errore in getApartments:", error);
+    return { apartments: [], condominiums: [] };
+  }
+}
+
+// Funzione per includere JavaScript modale
+function includeJsModal() {
+  return `
+    <script>
+      // Funzione per assicurarsi che Bootstrap sia disponibile
+      function ensureBootstrap() {
+        if (typeof bootstrap === 'undefined') {
+          // Crea una polyfill minima per bootstrap.Modal
+          window.bootstrap = {
+            Modal: function(element) {
+              this.element = element;
+              this.show = function() {
+                element.style.display = 'block';
+                element.classList.add('show');
+                document.body.classList.add('modal-open');
+              };
+              this.hide = function() {
+                element.style.display = 'none';
+                element.classList.remove('show');
+                document.body.classList.remove('modal-open');
+              };
+            }
+          };
+        }
+      }
+      
+      // Verifica Bootstrap all'avvio
+      document.addEventListener('DOMContentLoaded', function() {
+        ensureBootstrap();
+        
+        // Aggiunge log alla console per debug
+        console.log("DOM caricato, inizializzazione applicazione...");
+        
+        // Intercetta eventuali errori JavaScript
+        window.onerror = function(message, source, lineno, colno, error) {
+          console.error("Errore JavaScript: ", message, "Linea:", lineno, "Colonna:", colno, "Dettagli:", error);
+          return false;
+        };
+      });
+    </script>
+  `;
+}
