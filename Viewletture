@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f8f9fa;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .container {
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      padding: 30px;
+      max-width: 1200px;
+      margin: 30px auto;
+    }
+    
+    .header-section {
+      margin-bottom: 20px;
+    }
+    
+    .table-header {
+      margin-bottom: 20px;
+      border-bottom: 2px solid #4a86e8;
+      padding-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .filter-section {
+      background-color: #f8f9fa;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+      border: 1px solid #e9ecef;
+    }
+    
+    .table {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    
+    .table th {
+      background-color: #f2f7fd;
+      border-bottom: 2px solid #4a86e8;
+    }
+    
+    .empty-message {
+      text-align: center;
+      padding: 50px 30px;
+      color: #6c757d;
+    }
+    
+    .badge-tipo {
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: normal;
+      color: white;
+    }
+    
+    .badge-acqua {
+      background-color: #0d6efd;
+    }
+    
+    .badge-luce {
+      background-color: #ffc107;
+      color: #212529;
+    }
+    
+    .badge-gas {
+      background-color: #dc3545;
+    }
+    
+    /* Stili per i modal */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: none;
+      z-index: 1050;
+    }
+    
+    .modal.show {
+      display: block;
+    }
+    
+    .modal-dialog {
+      max-width: 800px;
+      margin: 30px auto;
+      background-color: white;
+      border-radius: 5px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .modal-content {
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    
+    .modal-header {
+      padding: 15px 20px;
+      border-bottom: 1px solid #dee2e6;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .modal-body {
+      padding: 20px;
+    }
+    
+    .modal-footer {
+      padding: 15px 20px;
+      border-top: 1px solid #dee2e6;
+      display: flex;
+      justify-content: flex-end;
+    }
+    
+    .btn-close {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    
+    /* Stili per scanner e contatori */
+    #scanner-container {
+      position: relative;
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto;
+      overflow: hidden;
+      border-radius: 8px;
+    }
+    
+    .contatore-display {
+      background-color: #000;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+      text-align: center;
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+    }
+    
+    .contatore-numeri {
+      font-family: "Courier New", monospace;
+      padding: 15px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+    }
+    
+    .numero-colonna {
+      position: relative;
+      margin: 0 2px;
+    }
+    
+    .numero-wrapper {
+      border-radius: 4px;
+      overflow: hidden;
+      height: 60px;
+      width: 40px;
+      position: relative;
+    }
+    
+    .numero {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 60px;
+      width: 40px;
+      font-size: 40px;
+      font-weight: bold;
+    }
+    
+    .numero-decimale {
+      color: #dc3545;
+    }
+    
+    .virgola {
+      font-size: 40px;
+      margin: 0 5px;
+      display: flex;
+      align-items: flex-end;
+      padding-bottom: 15px;
+    }
+    
+    .acqua-display .numero:not(.numero-decimale) {
+      color: #0d6efd;
+    }
+    
+    .luce-display .numero:not(.numero-decimale) {
+      color: #ffc107;
+    }
+    
+    .gas-display .numero:not(.numero-decimale) {
+      color: #dc3545;
+    }
+  </style>
+</head>
+<body>
+
+<script>
+<button onclick="debugLettureLoading()" class="btn btn-warning" style="position: fixed; bottom: 10px; right: 10px; z-index: 9999;">
+  Debug Caricamento Letture
+</button>
+
+function testDetailedLetture() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      console.log("Dettagli letture:", result);
+      alert("Debug completato. Controlla la console.");
+    })
+    .withFailureHandler(function(error) {
+      console.error("Errore debug dettagliato:", error);
+      alert("Errore: " + error);
+    })
+    .debugDetailedLetture();
+}
+</script>
+<button onclick="testBasicAccess()" class="btn btn-secondary" style="position: fixed; bottom: 50px; right: 10px; z-index: 9999;">
+  Test Accesso Fogli
+</button>
+
+<script>
+function testBasicAccess() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      console.log("Risultato test accesso:", result);
+      alert(JSON.stringify(result, null, 2));
+    })
+    .withFailureHandler(function(error) {
+      console.error("Errore test accesso:", error);
+      alert("Errore: " + error);
+    })
+    .testBasicAccess();
+}
+</script>
+
+
+  <button onclick="loadLetture()" style="position: fixed; top: 10px; right: 10px; z-index: 9999;">
+  Ricarica Letture
+</button>
+<!-- Aggiungi questo pulsante temporaneamente per il debug -->
+<button onclick="testDebug()" class="btn btn-secondary" style="position: fixed; bottom: 10px; right: 10px; z-index: 9999;">
+  Test Debug
+</button>
+
+<script>
+function testDebug() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      console.log("Risultato debug:", result);
+      alert("Debug completato. Controlla la console per i dettagli.");
+    })
+    .withFailureHandler(function(error) {
+      console.error("Errore debug:", error);
+      alert("Errore nel debug: " + error);
+    })
+    .debugLettureLoading();
+}
+</script>
+  <div class="container">
+    <!-- Header con titolo e pulsante -->
+    <div class="header-section">
+      <div class="table-header">
+        <div>
+          <h2>Elenco Letture</h2>
+          <p class="text-muted">Visualizza e gestisci le letture dei contatori</p>
+        </div>
+        <div>
+          <button type="button" class="btn btn-primary" onclick="openAddModal()">
+            <i class="bi bi-plus-circle me-2"></i>Nuova Lettura
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Filtri -->
+    <div class="filter-section">
+      <div class="row align-items-end">
+        <div class="col-md-4">
+          <label for="filter-condominio" class="form-label">Filtra per Condominio</label>
+          <select class="form-select" id="filter-condominio" onchange="filterLetture()">
+            <option value="">Tutti i Condomini</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="filter-contatore" class="form-label">Tipo Contatore</label>
+          <select class="form-select" id="filter-contatore" onchange="filterLetture()">
+            <option value="">Tutti i Tipi</option>
+            <option value="acqua">Acqua</option>
+            <option value="luce">Luce</option>
+            <option value="gas">Gas</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Cerca..." oninput="filterLetture()">
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Tabella letture -->
+    <div class="table-responsive">
+      <table class="table table-hover" id="lettureTable">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Condominio</th>
+            <th>Appartamento</th>
+            <th>Tipo</th>
+            <th>Lettura</th>
+            <th>Consumo</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody id="lettureList">
+          <!-- Le letture verranno inserite dinamicamente qui -->
+        </tbody>
+      </table>
+      
+      <!-- Messaggio quando non ci sono letture -->
+      <div id="emptyMessage" class="empty-message">
+        <i class="bi bi-speedometer2" style="font-size: 48px;"></i>
+        <h5 class="mt-3">Nessuna lettura trovata</h5>
+        <p>Aggiungi la tua prima lettura utilizzando il pulsante "Nuova Lettura".</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal per aggiungere una nuova lettura -->
+  <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Nuova Lettura Contatore</h5>
+          <button type="button" class="btn-close" onclick="closeAddModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Tab per la scelta del metodo di inserimento -->
+          <ul class="nav nav-tabs mb-4" id="insertionTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual-content" type="button" role="tab">
+                <i class="bi bi-pencil me-2"></i>Inserimento Manuale
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="scan-tab" data-bs-toggle="tab" data-bs-target="#scan-content" type="button" role="tab">
+                <i class="bi bi-camera me-2"></i>Scansione Contatore
+              </button>
+            </li>
+          </ul>
+          
+          <!-- Tab content -->
+          <div class="tab-content" id="insertionTabContent">
+            <!-- Tab Inserimento Manuale -->
+            <div class="tab-pane fade show active" id="manual-content" role="tabpanel">
+              <!-- Tipo di contatore -->
+              <div class="contatore-tabs">
+                <ul class="nav nav-pills mb-4" id="tipoContatoreTab" role="tablist">
+                  <li class="nav-item flex-fill" role="presentation">
+                    <button class="nav-link active w-100" id="acqua-tab" data-bs-toggle="pill" data-bs-target="#acqua-content" type="button" role="tab" data-tipo="acqua">
+                      <i class="bi bi-droplet-fill"></i>
+                      Acqua
+                    </button>
+                  </li>
+                  <li class="nav-item flex-fill" role="presentation">
+                    <button class="nav-link w-100" id="luce-tab" data-bs-toggle="pill" data-bs-target="#luce-content" type="button" role="tab" data-tipo="luce">
+                      <i class="bi bi-lightning-fill"></i>
+                      Luce
+                    </button>
+                  </li>
+                  <li class="nav-item flex-fill" role="presentation">
+                    <button class="nav-link w-100" id="gas-tab" data-bs-toggle="pill" data-bs-target="#gas-content" type="button" role="tab" data-tipo="gas">
+                      <i class="bi bi-fire"></i>
+                      Gas
+                    </button>
+                  </li>
+                </ul>
+              
+                <!-- Tab content per tipo contatore -->
+                <div class="tab-content" id="tipoContatoreTabContent">
+                  <!-- Tab Acqua -->
+                  <div class="tab-pane fade show active" id="acqua-content" role="tabpanel">
+                    <form id="add-form-acqua" class="add-form">
+                      <input type="hidden" name="tipoContatore" value="acqua">
+                      
+                      <div class="row mb-3">
+                        <div class="col-md-6">
+                          <label for="add-condominio-acqua" class="form-label">Condominio*</label>
+                          <select class="form-select add-condominio" id="add-condominio-acqua" name="condominioId" required onchange="loadApartments(this)">
+                            <option value="">Seleziona Condominio</option>
+                          </select>
+                        </div>
+                        <div class="col-md-6">
+                          <label for="add-appartamento-acqua" class="form-label">Appartamento*</label>
+                          <select class="form-select add-appartamento" id="add-appartamento-acqua" name="appartamentoId" required onchange="loadLastReading('acqua', this.value)">
+                            <option value="">Seleziona Appartamento</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div class="row mb-3">
+                        <div class="col-md-6">
+                          <label for="add-data-acqua" class="form-label">Data Lettura*</label>
+                          <input type="date" class="form-control" id="add-data-acqua" name="data" required>
+                        </div>
+                        <div class="col-md-6">
+                          <label for="add-lettura-acqua" class="form-label">Valore Lettura (m³)*</label>
+                          <div class="input-group">
+                            <input type="number" class="form-control add-lettura" id="add-lettura-acqua" name="lettura" required step="0.001" min="0">
+                            <span class="input-group-text">m³</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <!-- Display simulatore contatore acqua -->
+                      <div class="contatore-display acqua-display">
+                        <div class="contatore-numeri">
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="acqua-digit-0">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="acqua-digit-1">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="acqua-digit-2">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="acqua-digit-3">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="acqua-digit-4">0</div>
+                            </div>
+                          </div>
+                          <div class="virgola">,</div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="acqua-digit-5">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="acqua-digit-6">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="acqua-digit-7">0</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="ultimo-valore" id="last-reading-acqua">Ultima lettura: --</div>
+                      </div>
+                      
+                      <div class="mb-3 mt-3">
+                        <label for="add-note-acqua" class="form-label">Note</label>
+                        <textarea class="form-control" id="add-note-acqua" name="note" rows="2"></textarea>
+                      </div>
+                    </form>
+                  </div>
+                  
+                  <!-- Tab Luce -->
+                  <div class="tab-pane fade" id="luce-content" role="tabpanel">
+                    <form id="add-form-luce" class="add-form">
+                      <input type="hidden" name="tipoContatore" value="luce">
+                      
+                      <div class="row mb-3">
+                        <div class="col-md-6">
+                          <label for="add-condominio-luce" class="form-label">Condominio*</label>
+                          <select class="form-select add-condominio" id="add-condominio-luce" name="condominioId" required onchange="loadApartments(this)">
+                            <option value="">Seleziona Condominio</option>
+                          </select>
+                        </div>
+                        <div class="col-md-6">
+                          <label for="add-appartamento-luce" class="form-label">Appartamento*</label>
+                          <select class="form-select add-appartamento" id="add-appartamento-luce" name="appartamentoId" required onchange="loadLastReading('luce', this.value)">
+                            <option value="">Seleziona Appartamento</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div class="row mb-3">
+                        <div class="col-md-6">
+                          <label for="add-data-luce" class="form-label">Data Lettura*</label>
+                          <input type="date" class="form-control" id="add-data-luce" name="data" required>
+                        </div>
+                        <div class="col-md-6">
+                          <label for="add-lettura-luce" class="form-label">Valore Lettura (kWh)*</label>
+                          <div class="input-group">
+                            <input type="number" class="form-control add-lettura" id="add-lettura-luce" name="lettura" required step="0.01" min="0">
+                            <span class="input-group-text">kWh</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <!-- Display simulatore contatore luce -->
+                      <div class="contatore-display luce-display">
+                        <div class="contatore-numeri">
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="luce-digit-0">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="luce-digit-1">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="luce-digit-2">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="luce-digit-3">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="luce-digit-4">0</div>
+                            </div>
+                          </div>
+                          <div class="virgola">,</div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="luce-digit-5">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="luce-digit-6">0</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="ultimo-valore" id="last-reading-luce">Ultima lettura: --</div>
+                      </div>
+                      
+                      <div class="mb-3 mt-3">
+                        <label for="add-note-luce" class="form-label">Note</label>
+                        <textarea class="form-control" id="add-note-luce" name="note" rows="2"></textarea>
+                      </div>
+                    </form>
+                  </div>
+                  
+                  <!-- Tab Gas -->
+                  <div class="tab-pane fade" id="gas-content" role="tabpanel">
+                    <form id="add-form-gas" class="add-form">
+                      <input type="hidden" name="tipoContatore" value="gas">
+                      
+                      <div class="row mb-3">
+                        <div class="col-md-6">
+                          <label for="add-condominio-gas" class="form-label">Condominio*</label>
+                          <select class="form-select add-condominio" id="add-condominio-gas" name="condominioId" required onchange="loadApartments(this)">
+                            <option value="">Seleziona Condominio</option>
+                          </select>
+                        </div>
+                        <div class="col-md-6">
+                          <label for="add-appartamento-gas" class="form-label">Appartamento*</label>
+                          <select class="form-select add-appartamento" id="add-appartamento-gas" name="appartamentoId" required onchange="loadLastReading('gas', this.value)">
+                            <option value="">Seleziona Appartamento</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div class="row mb-3">
+                        <div class="col-md-6">
+                          <label for="add-data-gas" class="form-label">Data Lettura*</label>
+                          <input type="date" class="form-control" id="add-data-gas" name="data" required>
+                        </div>
+                        <div class="col-md-6">
+                          <label for="add-lettura-gas" class="form-label">Valore Lettura (m³)*</label>
+                          <div class="input-group">
+                            <input type="number" class="form-control add-lettura" id="add-lettura-gas" name="lettura" required step="0.001" min="0">
+                            <span class="input-group-text">m³</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <!-- Display simulatore contatore gas -->
+                      <div class="contatore-display gas-display">
+                        <div class="contatore-numeri">
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="gas-digit-0">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="gas-digit-1">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="gas-digit-2">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="gas-digit-3">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero" id="gas-digit-4">0</div>
+                            </div>
+                          </div>
+                          <div class="virgola">,</div>
+                           <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="gas-digit-5">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="gas-digit-6">0</div>
+                            </div>
+                          </div>
+                          <div class="numero-colonna">
+                            <div class="numero-wrapper">
+                              <div class="numero numero-decimale" id="gas-digit-7">0</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="ultimo-valore" id="last-reading-gas">Ultima lettura: --</div>
+                      </div>
+                      
+                      <div class="mb-3 mt-3">
+                        <label for="add-note-gas" class="form-label">Note</label>
+                        <textarea class="form-control" id="add-note-gas" name="note" rows="2"></textarea>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Tab Scansione Contatore -->
+            <div class="tab-pane fade" id="scan-content" role="tabpanel">
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <label for="scan-condominio" class="form-label">Condominio*</label>
+                  <select class="form-select" id="scan-condominio" required onchange="loadApartmentsForScan(this)">
+                    <option value="">Seleziona Condominio</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="scan-appartamento" class="form-label">Appartamento*</label>
+                  <select class="form-select" id="scan-appartamento" required>
+                    <option value="">Seleziona Appartamento</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <label for="scan-tipo" class="form-label">Tipo Contatore*</label>
+                  <select class="form-select" id="scan-tipo" required>
+                    <option value="">Seleziona Tipo</option>
+                    <option value="acqua">Acqua</option>
+                    <option value="luce">Luce</option>
+                    <option value="gas">Gas</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="scan-data" class="form-label">Data Lettura*</label>
+                  <input type="date" class="form-control" id="scan-data" required>
+                </div>
+              </div>
+              
+              <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Posiziona il contatore all'interno dell'area di scansione. La fotocamera riconoscerà automaticamente i numeri.
+              </div>
+              
+              <div id="scanner-container" class="mb-4 d-none">
+                <video id="video-preview" autoplay></video>
+                <canvas id="canvas" style="display: none;"></canvas>
+                <button id="capture-btn" class="btn btn-primary rounded-circle">
+                  <i class="bi bi-camera-fill"></i>
+                </button>
+              </div>
+              
+              <div id="scan-result-container" class="d-none">
+                <div class="alert alert-success">
+                  <h5>Scansione Completata</h5>
+                  <p>Valore rilevato: <strong id="scan-result-value">0.000</strong></p>
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="scan-confirm-checkbox">
+                    <label class="form-check-label" for="scan-confirm-checkbox">
+                      Conferma la lettura rilevata
+                    </label>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col">
+                    <button class="btn btn-secondary" onclick="resetScanner()">
+                      <i class="bi bi-arrow-repeat me-2"></i>Nuova Scansione
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div id="scan-processing" class="text-center d-none">
+                <div class="spinner-border text-primary mb-3" role="status">
+                  <span class="visually-hidden">Elaborazione in corso...</span>
+                </div>
+                <p>Riconoscimento numeri in corso...</p>
+              </div>
+              
+              <div id="scan-controls" class="text-center mt-4">
+                <button id="start-scan-btn" class="btn btn-primary" onclick="startScanner()">
+                  <i class="bi bi-camera me-2"></i>Avvia Fotocamera
+                </button>
+              </div>
+              
+              <div class="mb-3 mt-4">
+                <label for="scan-note" class="form-label">Note</label>
+                <textarea class="form-control" id="scan-note" rows="2"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Annulla</button>
+          <button type="button" class="btn btn-primary" id="save-manual-btn" onclick="saveManualReading()">Salva Lettura</button>
+          <button type="button" class="btn btn-primary d-none" id="save-scan-btn" onclick="saveScanReading()">Salva Lettura</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal per visualizzare i dettagli di una lettura -->
+  <div class="modal fade" id="viewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Dettagli Lettura</h5>
+          <button type="button" class="btn-close" onclick="closeViewModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="card mb-3">
+            <div class="card-header" id="view-tipo-header">
+              <h6 class="mb-0" id="view-tipo-title">Lettura Contatore</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <p><strong>Condominio:</strong> <span id="view-condominio"></span></p>
+                  <p><strong>Appartamento:</strong> <span id="view-appartamento"></span></p>
+                  <p><strong>Data Lettura:</strong> <span id="view-data"></span></p>
+                </div>
+                <div class="col-md-6">
+                  <p><strong>Lettura Attuale:</strong> <span id="view-lettura"></span></p>
+                  <p><strong>Lettura Precedente:</strong> <span id="view-lettura-precedente"></span></p>
+                  <p><strong>Consumo:</strong> <span id="view-consumo"></span></p>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-12">
+                  <p><strong>Note:</strong> <span id="view-note"></span></p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="view-image-container" class="text-center d-none">
+            <h6 class="mb-3">Immagine Contatore</h6>
+            <img id="view-image" src="" alt="Immagine contatore" class="img-fluid rounded">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeViewModal()">Chiudi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Variabili globali
+    let allLetture = [];
+    let condominiumsMap = {};
+    let apartmentsMap = {};
+    let videoStream = null;
+    let activeTab = 'manual';
+    
+    // Quando il documento è pronto
+    document.addEventListener('DOMContentLoaded', function() {
+      // Carica i dati iniziali
+      loadCondominiums();
+      loadLetture();
+      
+      // Imposta la data corrente come predefinita
+      const today = new Date().toISOString().split('T')[0];
+      document.querySelectorAll('input[type="date"]').forEach(input => {
+        input.value = today;
+      });
+      
+      // Gestione del cambio di tab
+      document.getElementById('insertionTab').addEventListener('shown.bs.tab', function(e) {
+        activeTab = e.target.id === 'manual-tab' ? 'manual' : 'scan';
+        document.getElementById('save-manual-btn').classList.toggle('d-none', activeTab !== 'manual');
+        document.getElementById('save-scan-btn').classList.toggle('d-none', activeTab !== 'scan');
+      });
+      
+      // Event listener per gli input numerici (per aggiornare il display simulato)
+      document.querySelectorAll('.add-lettura').forEach(input => {
+        input.addEventListener('input', function() {
+          const tipo = this.id.split('-')[2]; // ad es. "add-lettura-acqua" -> "acqua"
+          updateSimulatedDisplay(tipo, this.value);
+        });
+      });
+    });
+    
+    // Funzioni per modali
+   function openAddModal() {
+  const modal = document.getElementById('addModal');
+  if (!modal) {
+    console.error("Elemento modal 'addModal' non trovato");
+    return;
+  }
+  
+  modal.classList.add('show');
+  modal.style.display = 'block';
+  document.body.classList.add('modal-open');
+  
+  // Attivazione esplicita del primo tab (acqua)
+  try {
+    const acquaTab = document.getElementById('acqua-tab');
+    if (acquaTab) {
+      // Crea e dispatcha un evento click per attivare il tab
+      const clickEvent = new Event('click');
+      acquaTab.dispatchEvent(clickEvent);
+    }
+  } catch (error) {
+    console.error("Errore nell'attivazione del tab:", error);
+  }
+  
+  // Reset dei form
+  document.querySelectorAll('.add-form').forEach(form => {
+    if (form) form.reset();
+  });
+  
+  try {
+    // Reset dei display simulati in modo sicuro
+    updateSimulatedDisplay('acqua', 0);
+    updateSimulatedDisplay('luce', 0);
+    updateSimulatedDisplay('gas', 0);
+  } catch (error) {
+    console.error("Errore nell'aggiornamento dei display:", error);
+  }
+  
+  // Reset dei messaggi di ultima lettura
+  const lastReadingAcqua = document.getElementById('last-reading-acqua');
+  if (lastReadingAcqua) lastReadingAcqua.textContent = 'Ultima lettura: --';
+  
+  const lastReadingLuce = document.getElementById('last-reading-luce');
+  if (lastReadingLuce) lastReadingLuce.textContent = 'Ultima lettura: --';
+  
+  const lastReadingGas = document.getElementById('last-reading-gas');
+  if (lastReadingGas) lastReadingGas.textContent = 'Ultima lettura: --';
+  
+  // Reset della scansione
+  resetScanner();
+  
+  // Imposta la data corrente
+  const today = new Date().toISOString().split('T')[0];
+  document.querySelectorAll('input[type="date"]').forEach(input => {
+    if (input) input.value = today;
+  });
+}
+    
+    function closeAddModal() {
+      const modal = document.getElementById('addModal');
+      modal.classList.remove('show');
+      modal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+    }
+    
+    function openViewModal() {
+      const modal = document.getElementById('viewModal');
+      modal.classList.add('show');
+      modal.style.display = 'block';
+      document.body.classList.add('modal-open');
+    }
+    
+    function closeViewModal() {
+      const modal = document.getElementById('viewModal');
+      modal.classList.remove('show');
+      modal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+    }
+    
+    // Funzione per caricare i condomini
+    function loadCondominiums() {
+      google.script.run
+        .withSuccessHandler(function(condominiums) {
+          // Popola tutte le select di condomini
+          populateCondominiums(condominiums);
+        })
+        .getCondominiums();
+    }
+    
+    // Funzione per caricare gli appartamenti in base al condominio selezionato
+    function loadApartments(selectElement) {
+      const condominioId = selectElement.value;
+      if (!condominioId) return;
+      
+      const tipo = selectElement.id.split('-')[2]; // ad es. "add-condominio-acqua" -> "acqua"
+      const appartamentoSelect = document.getElementById(`add-appartamento-${tipo}`);
+      
+      // Resetta la select degli appartamenti
+      appartamentoSelect.innerHTML = '<option value="">Seleziona Appartamento</option>';
+      
+      google.script.run
+        .withSuccessHandler(function(data) {
+          const apartments = data.apartments.filter(apt => apt.condominiumId === condominioId);
+          
+          // Aggiungi gli appartamenti alla select
+          apartments.forEach(function(apt) {
+            const option = document.createElement('option');
+            option.value = apt.id;
+            option.textContent = `${apt.number} - ${apt.owner}`;
+            appartamentoSelect.appendChild(option);
+          });
+        })
+        .getApartments();
+    }
+    
+    // Funzione per caricare gli appartamenti per la scansione
+    function loadApartmentsForScan(selectElement) {
+      const condominioId = selectElement.value;
+      if (!condominioId) return;
+      
+      const appartamentoSelect = document.getElementById('scan-appartamento');
+      
+      // Resetta la select degli appartamenti
+      appartamentoSelect.innerHTML = '<option value="">Seleziona Appartamento</option>';
+      
+      google.script.run
+        .withSuccessHandler(function(data) {
+          const apartments = data.apartments.filter(apt => apt.condominiumId === condominioId);
+          
+          // Aggiungi gli appartamenti alla select
+          apartments.forEach(function(apt) {
+            const option = document.createElement('option');
+            option.value = apt.id;
+            option.textContent = `${apt.number} - ${apt.owner}`;
+            appartamentoSelect.appendChild(option);
+          });
+        })
+        .getApartments();
+    }
+    
+    // Funzione per caricare l'ultima lettura di un appartamento
+    function loadLastReading(tipo, appartamentoId) {
+      if (!appartamentoId) return;
+      
+      google.script.run
+        .withSuccessHandler(function(lettura) {
+          if (lettura) {
+            document.getElementById(`last-reading-${tipo}`).textContent = `Ultima lettura: ${lettura.lettura.toFixed(3)} ${tipo === 'luce' ? 'kWh' : 'm³'} (${new Date(lettura.data).toLocaleDateString()})`;
+          } else {
+            document.getElementById(`last-reading-${tipo}`).textContent = 'Nessuna lettura precedente';
+          }
+        })
+        .getUltimaLettura(appartamentoId, tipo);
+    }
+    
+   // Funzione per caricare le letture
+function loadLetture() {
+  try {
+    google.script.run
+      .withSuccessHandler(function(letture) {
+        console.log("Letture caricate:", letture ? letture.length : 0);
+        
+        // Salva i dati globalmente
+        allLetture = letture || [];
+        
+        // Carica i dati di condomini e appartamenti prima di visualizzare
+        google.script.run
+          .withSuccessHandler(function(data) {
+            console.log("Dati condomini e appartamenti caricati");
+            
+            // Salva i dati nelle mappe globali
+            const apartments = data.apartments || [];
+            const condominiums = data.condominiums || [];
+            
+            // Aggiorna le mappe
+            apartmentsMap = {};
+            apartments.forEach(function(apt) {
+              if (apt && apt.id) {
+                apartmentsMap[apt.id] = apt;
+              }
+            });
+            
+            condominiumsMap = {};
+            condominiums.forEach(function(condo) {
+              if (condo && condo.id) {
+                condominiumsMap[condo.id] = condo;
+              }
+            });
+            
+            // Ora mostra i dati nella tabella
+            displayLetture(allLetture);
+          })
+          .withFailureHandler(function(error) {
+            console.error("Errore nel caricamento dei dati di condomini e appartamenti:", error);
+            // Mostra comunque le letture anche senza i dati correlati
+            displayLetture(allLetture);
+          })
+          .getApartments();
+      })
+      .withFailureHandler(function(error) {
+        console.error("Errore nel caricamento delle letture:", error);
+        // Mostra un messaggio di errore nella UI
+        const tableBody = document.getElementById('lettureList');
+        const emptyMessage = document.getElementById('emptyMessage');
+        
+        if (tableBody) tableBody.innerHTML = '';
+        if (emptyMessage) {
+          emptyMessage.style.display = 'block';
+          emptyMessage.innerHTML = `
+            <i class="bi bi-exclamation-triangle" style="font-size: 48px; color: #dc3545;"></i>
+            <h5 class="mt-3">Errore nel caricamento delle letture</h5>
+            <p>Si è verificato un errore durante il caricamento dei dati. Ricarica la pagina o contatta l'amministratore.</p>
+          `;
+        }
+      })
+      .getLetture();
+  } catch (error) {
+    console.error("Errore nell'esecuzione di loadLetture:", error);
+  }
+}
+    
+    // Funzione per popolare le select dei condomini
+    function populateCondominiums(condominiums) {
+      // Salva i condomini in una mappa per un accesso rapido
+      condominiumsMap = {};
+      condominiums.forEach(function(condo) {
+        condominiumsMap[condo.id] = condo;
+      });
+      
+      // Popola il filtro condomini
+      const filterSelect = document.getElementById('filter-condominio');
+      filterSelect.innerHTML = '<option value="">Tutti i Condomini</option>';
+      
+      // Popola le select per la scheda manuale
+      document.querySelectorAll('.add-condominio').forEach(function(select) {
+        select.innerHTML = '<option value="">Seleziona Condominio</option>';
+      });
+      
+      // Popola la select per la scheda scansione
+      const scanSelect = document.getElementById('scan-condominio');
+      scanSelect.innerHTML = '<option value="">Seleziona Condominio</option>';
+      
+      // Aggiungi le opzioni per ogni condominio
+      condominiums.forEach(function(condo) {
+        // Per il filtro
+        const filterOption = document.createElement('option');
+        filterOption.value = condo.id;
+        filterOption.textContent = condo.name;
+        filterSelect.appendChild(filterOption);
+        
+        // Per le select della scheda manuale
+        document.querySelectorAll('.add-condominio').forEach(function(select) {
+          const option = document.createElement('option');
+          option.value = condo.id;
+          option.textContent = condo.name;
+          select.appendChild(option.cloneNode(true));
+        });
+        
+        // Per la select della scheda scansione
+        const scanOption = document.createElement('option');
+        scanOption.value = condo.id;
+        scanOption.textContent = condo.name;
+        scanSelect.appendChild(scanOption);
+      });
+    }
+    
+// Funzione per visualizzare le letture nella tabella
+function displayLetture(letture) {
+  const tableBody = document.getElementById('lettureList');
+  const emptyMessage = document.getElementById('emptyMessage');
+  
+  console.log("Letture ricevute:", letture); // Aggiungi questo log
+  
+  // Controlla se ci sono letture
+  if (letture && letture.length > 0) {
+    tableBody.innerHTML = '';
+    emptyMessage.style.display = 'none';
+    
+    // Ottieni i dati di condomini e appartamenti
+    google.script.run.withSuccessHandler(function(data) {
+      console.log("Dati appartamenti e condomini ricevuti:", data); // Aggiungi questo log
+      
+      const apartments = data.apartments || [];
+      const condominiums = data.condominiums || [];
+      
+      // Crea mappe per un accesso rapido
+      const aptMap = {};
+      apartments.forEach(function(apt) {
+        aptMap[apt.id] = apt;
+      });
+      
+      const condoMap = {};
+      condominiums.forEach(function(condo) {
+        condoMap[condo.id] = condo;
+      });
+      
+      // Aggiorna i riferimenti globali
+      apartmentsMap = aptMap;
+      condominiumsMap = condoMap;
+      
+      // Aggiungi ogni lettura alla tabella
+      letture.forEach(function(lettura, index) {
+        console.log(`Elaborazione lettura ${index}:`, lettura); // Aggiungi questo log
+        
+        const row = document.createElement('tr');
+        
+        // Ottieni i dati relativi (con gestione null/undefined)
+        const condominio = condoMap[lettura.condominioId] || { name: 'Sconosciuto' };
+        const appartamento = aptMap[lettura.appartamentoId] || { number: 'Sconosciuto', owner: '' };
+        
+        // Formatta i dati
+        const formattedDate = new Date(lettura.data).toLocaleDateString();
+        const tipoClasses = {
+          'acqua': 'badge-acqua',
+          'luce': 'badge-luce',
+          'gas': 'badge-gas'
+        };
+        const tipoLabels = {
+          'acqua': 'Acqua',
+          'luce': 'Luce',
+          'gas': 'Gas'
+        };
+        const unitLabels = {
+          'acqua': 'm³',
+          'luce': 'kWh',
+          'gas': 'm³'
+        };
+        
+        // Gestione sicura dei valori numerici
+        const letturaValue = parseFloat(lettura.lettura || 0).toFixed(3);
+        const consumoValue = parseFloat(lettura.consumo || 0).toFixed(3);
+        
+        row.innerHTML = `
+          <td>${formattedDate}</td>
+          <td>${condominio.name || ''}</td>
+          <td>${appartamento.number || ''} - ${appartamento.owner || ''}</td>
+          <td><span class="badge-tipo ${tipoClasses[lettura.tipoContatore] || ''}">${tipoLabels[lettura.tipoContatore] || lettura.tipoContatore}</span></td>
+          <td>${letturaValue} ${unitLabels[lettura.tipoContatore] || ''}</td>
+          <td>${consumoValue} ${unitLabels[lettura.tipoContatore] || ''}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary action-btn" onclick="viewLettura('${lettura.id}')">
+              <i class="bi bi-eye"></i>
+            </button>
+          </td>
+        `;
+        
+        tableBody.appendChild(row);
+      });
+      
+      // Disabilita temporaneamente i filtri per debug
+      // filterLetture();
+    }).getApartments();
+  } else {
+    // Mostra il messaggio di tabella vuota
+    tableBody.innerHTML = '';
+    emptyMessage.style.display = 'block';
+    console.log("Nessuna lettura trovata"); // Aggiungi questo log
+  }
+}
+    
+// Funzione per filtrare le letture
+function filterLetture() {
+  if (!allLetture || allLetture.length === 0) {
+    console.log("Nessuna lettura da filtrare");
+    return;
+  }
+  
+  console.log("Filtraggio letture, totale: " + allLetture.length);
+  
+  const condominioFilter = document.getElementById('filter-condominio').value;
+  const contatoreFilter = document.getElementById('filter-contatore').value;
+  const searchFilter = document.getElementById('searchInput').value.toUpperCase();
+  
+  console.log("Filtri applicati:", { 
+    condominio: condominioFilter, 
+    contatore: contatoreFilter, 
+    search: searchFilter 
+  });
+  
+  const tableBody = document.getElementById('lettureList');
+  const emptyMessage = document.getElementById('emptyMessage');
+  
+  // Per il debug, mostra tutte le letture senza filtri
+  let filteredLetture = allLetture;
+  
+  // Commenta temporaneamente i filtri per debug
+  /*
+  if (condominioFilter) {
+    filteredLetture = filteredLetture.filter(l => l.condominioId === condominioFilter);
+  }
+  
+  if (contatoreFilter) {
+    filteredLetture = filteredLetture.filter(l => l.tipoContatore === contatoreFilter);
+  }
+  
+  if (searchFilter) {
+    filteredLetture = filteredLetture.filter(l => {
+      const condominio = condominiumsMap[l.condominioId];
+      const appartamento = apartmentsMap[l.appartamentoId];
+      
+      // Cerca nel nome del condominio e nell'appartamento
+      const condoName = (condominio?.name || '').toUpperCase();
+      const aptNumber = (appartamento?.number || '').toUpperCase();
+      const aptOwner = (appartamento?.owner || '').toUpperCase();
+      
+      return condoName.includes(searchFilter) || 
+             aptNumber.includes(searchFilter) ||
+             aptOwner.includes(searchFilter);
+    });
+  }
+  */
+  
+  console.log("Numero di letture dopo i filtri:", filteredLetture.length);
+  
+  // Mostra un messaggio se nessuna lettura corrisponde ai filtri
+  if (filteredLetture.length === 0) {
+    tableBody.innerHTML = '';
+    emptyMessage.style.display = 'block';
+    console.log("Nessuna lettura corrisponde ai filtri");
+    return;
+  }
+  
+  // In modalità debug, mostra tutte le letture
+  emptyMessage.style.display = 'none';
+  
+  // Mostra le righe delle letture filtrate
+  const rows = tableBody.getElementsByTagName('tr');
+  console.log("Numero di righe nella tabella:", rows.length);
+  
+  if (rows.length === 0) {
+    console.log("Nessuna riga da filtrare, probabilmente devono essere ancora create");
+    return;
+  }
+  
+  // Mostra tutte le righe per debug
+  for (let i = 0; i < rows.length; i++) {
+    rows[i].style.display = '';
+  }
+}
+    
+   // Funzione per aggiornare il display simulato
+function updateSimulatedDisplay(tipo, valore) {
+  // Converti il valore in una stringa con padding
+  let valueStr = parseFloat(valore || 0).toFixed(3);
+  
+  // Rimuovi eventuali spazi e caratteri non numerici eccetto il punto
+  valueStr = valueStr.replace(/[^\d.]/g, '');
+  
+  // Split decimali
+  const parts = valueStr.split('.');
+  let intPart = parts[0] || '0';
+  let decPart = parts[1] || '000';
+  
+  // Aggiungi zeri a sinistra all'intero
+  intPart = intPart.padStart(5, '0');
+  
+  // Aggiungi zeri a destra ai decimali
+  decPart = decPart.padEnd(3, '0');
+  
+  // Aggiorna le cifre con controllo null
+  for (let i = 0; i < intPart.length; i++) {
+    const digitElement = document.getElementById(`${tipo}-digit-${i}`);
+    if (digitElement) { // Controlla che l'elemento esista
+      digitElement.textContent = intPart[i];
+    }
+  }
+  
+  for (let i = 0; i < decPart.length; i++) {
+    const digitElement = document.getElementById(`${tipo}-digit-${i+5}`);
+    if (digitElement) { // Controlla che l'elemento esista
+      digitElement.textContent = decPart[i];
+    }
+  }
+}
+    
+    // Funzione per visualizzare i dettagli di una lettura
+    function viewLettura(id) {
+      const lettura = allLetture.find(l => l.id === id);
+      if (!lettura) return;
+      
+      // Ottieni i dati relativi
+      const condominio = condominiumsMap[lettura.condominioId] || { name: 'Sconosciuto' };
+      const appartamento = apartmentsMap[lettura.appartamentoId] || { number: 'Sconosciuto', owner: '' };
+      
+      // Formatta i dati
+      const formattedDate = new Date(lettura.data).toLocaleDateString();
+      const tipoColors = {
+        'acqua': '#0d6efd',
+        'luce': '#ffc107',
+        'gas': '#dc3545'
+      };
+      const tipoLabels = {
+        'acqua': 'Lettura Contatore Acqua',
+        'luce': 'Lettura Contatore Luce',
+        'gas': 'Lettura Contatore Gas'
+      };
+      const unitLabels = {
+        'acqua': 'm³',
+        'luce': 'kWh',
+        'gas': 'm³'
+      };
+      
+      // Popola la modal con i dati
+      document.getElementById('view-tipo-header').style.backgroundColor = tipoColors[lettura.tipoContatore] || '#6c757d';
+      document.getElementById('view-tipo-header').style.color = lettura.tipoContatore === 'luce' ? '#212529' : 'white';
+      document.getElementById('view-tipo-title').textContent = tipoLabels[lettura.tipoContatore] || 'Lettura Contatore';
+      document.getElementById('view-condominio').textContent = condominio.name || '';
+      document.getElementById('view-appartamento').textContent = `${appartamento.number || ''} - ${appartamento.owner || ''}`;
+      document.getElementById('view-data').textContent = formattedDate;
+      document.getElementById('view-lettura').textContent = `${lettura.lettura.toFixed(3)} ${unitLabels[lettura.tipoContatore] || ''}`;
+      document.getElementById('view-lettura-precedente').textContent = `${lettura.letturaPrecedente.toFixed(3)} ${unitLabels[lettura.tipoContatore] || ''}`;
+      document.getElementById('view-consumo').textContent = `${lettura.consumo.toFixed(3)} ${unitLabels[lettura.tipoContatore] || ''}`;
+      document.getElementById('view-note').textContent = lettura.note || '-';
+      
+      // Gestisci l'immagine
+      const imageContainer = document.getElementById('view-image-container');
+      const image = document.getElementById('view-image');
+      
+      if (lettura.immagineUrl) {
+        image.src = lettura.immagineUrl;
+        imageContainer.style.display = 'block';
+      } else {
+        imageContainer.style.display = 'none';
+      }
+      
+      // Mostra la modal
+      openViewModal();
+    }
+    
+    // Funzione per salvare una lettura manuale
+    function saveManualReading() {
+      const tipoTab = document.querySelector('#tipoContatoreTab .nav-link.active').getAttribute('data-tipo');
+      const form = document.getElementById(`add-form-${tipoTab}`);
+      
+      if (form.checkValidity()) {
+        // Raccogli i dati dal form
+        const formData = {};
+        const formElements = form.elements;
+        
+        for (let i = 0; i < formElements.length; i++) {
+          const element = formElements[i];
+          if (element.name) {
+            formData[element.name] = element.value;
+          }
+        }
+        
+        // Invia i dati
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result.success) {
+              // Chiudi la modal
+              closeAddModal();
+              
+              // Mostra un messaggio di conferma
+              alert(`Lettura registrata con successo! Consumo: ${result.consumo.toFixed(3)}`);
+              
+              // Ricarica la tabella
+              loadLetture();
+            } else {
+              alert('Errore durante la registrazione: ' + (result.error || 'Errore sconosciuto'));
+            }
+          })
+          .withFailureHandler(function(error) {
+            alert('Errore: ' + error);
+          })
+          .addLettura(formData);
+      } else {
+        form.reportValidity();
+      }
+    }
+    
+    // Funzione per salvare una lettura da scansione
+    function saveScanReading() {
+      const condominioId = document.getElementById('scan-condominio').value;
+      const appartamentoId = document.getElementById('scan-appartamento').value;
+      const tipoContatore = document.getElementById('scan-tipo').value;
+      const data = document.getElementById('scan-data').value;
+      const note = document.getElementById('scan-note').value;
+      const checkboxConfirm = document.getElementById('scan-confirm-checkbox');
+      const valore = document.getElementById('scan-result-value').textContent;
+      
+      if (!condominioId || !appartamentoId || !tipoContatore || !data) {
+        alert('Compilare tutti i campi obbligatori');
+        return;
+      }
+      
+      if (!checkboxConfirm.checked) {
+        alert('È necessario confermare la lettura rilevata');
+        return;
+      }
+      
+      // Raccogli i dati
+      const formData = {
+        condominioId: condominioId,
+        appartamentoId: appartamentoId,
+        tipoContatore: tipoContatore,
+        data: data,
+        lettura: parseFloat(valore),
+        note: note
+      };
+      
+      // Aggiungi l'immagine al formData se disponibile
+      const canvas = document.getElementById('canvas');
+      if (canvas.width > 0) {
+        formData.immagine = canvas.toDataURL('image/jpeg');
+      }
+      
+      // Invia i dati
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            // Chiudi la modal
+            closeAddModal();
+            
+            // Mostra un messaggio di conferma
+            alert(`Lettura registrata con successo! Consumo: ${result.consumo.toFixed(3)}`);
+            
+            // Ricarica la tabella
+            loadLetture();
+          } else {
+            alert('Errore durante la registrazione: ' + (result.error || 'Errore sconosciuto'));
+          }
+        })
+        .withFailureHandler(function(error) {
+          alert('Errore: ' + error);
+        })
+        .addLettura(formData);
+    }
+    
+    // Funzioni per la scansione
+    function startScanner() {
+      const condominioId = document.getElementById('scan-condominio').value;
+      const appartamentoId = document.getElementById('scan-appartamento').value;
+      const tipoContatore = document.getElementById('scan-tipo').value;
+      
+      if (!condominioId || !appartamentoId || !tipoContatore) {
+        alert('Seleziona condominio, appartamento e tipo di contatore prima di iniziare la scansione');
+        return;
+      }
+      
+      document.getElementById('start-scan-btn').style.display = 'none';
+      document.getElementById('scanner-container').classList.remove('d-none');
+      
+      // Accedi alla fotocamera
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+          .then(function(stream) {
+            videoStream = stream;
+            const video = document.getElementById('video-preview');
+            video.srcObject = stream;
+            video.play();
+            
+            // Imposta il pulsante di cattura
+            document.getElementById('capture-btn').addEventListener('click', captureImage);
+          })
+          .catch(function(err) {
+            console.error("Errore accesso alla fotocamera: " + err);
+            alert("Impossibile accedere alla fotocamera. Controlla i permessi del browser.");
+            resetScanner();
+          });
+      } else {
+        alert("Il tuo browser non supporta l'accesso alla fotocamera");
+        resetScanner();
+      }
+    }
+    
+    function captureImage() {
+      const video = document.getElementById('video-preview');
+      const canvas = document.getElementById('canvas');
+      const context = canvas.getContext('2d');
+      
+      // Imposta le dimensioni del canvas
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      // Disegna il frame corrente del video sul canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Nascondi il container dello scanner
+      document.getElementById('scanner-container').classList.add('d-none');
+      
+      // Mostra l'indicatore di elaborazione
+      document.getElementById('scan-processing').classList.remove('d-none');
+      
+      // Avvia il riconoscimento OCR
+      recognizeText(canvas.toDataURL('image/jpeg'));
+    }
+    
+    function recognizeText(imageUrl) {
+      Tesseract.recognize(
+        imageUrl,
+        'eng',
+        { 
+          logger: m => console.log(m),
+          tessedit_char_whitelist: '0123456789.,',
+        }
+      )
+      .then(({ data: { text } }) => {
+        // Elabora il testo riconosciuto
+        console.log("Testo riconosciuto:", text);
+        
+        // Estrai solo numeri e punti/virgole
+        let number = text.replace(/[^\d.,]/g, '');
+        
+        // Standardizza il separatore decimale
+        number = number.replace(',', '.');
+        
+        // Se ci sono più punti, considera solo il primo
+        if (number.split('.').length > 2) {
+          const parts = number.split('.');
+          number = parts[0] + '.' + parts[1];
+        }
+        
+        // Assicurati che sia un numero valido
+        let value = parseFloat(number);
+        if (isNaN(value)) {
+          value = 0;
+        }
+        
+        // Limita a 3 decimali
+        value = value.toFixed(3);
+        
+        // Mostra il risultato
+        document.getElementById('scan-result-value').textContent = value;
+        document.getElementById('scan-result-container').classList.remove('d-none');
+        document.getElementById('scan-processing').classList.add('d-none');
+      })
+      .catch(err => {
+        console.error("Errore OCR:", err);
+        alert("Errore nel riconoscimento del testo. Prova a scattare una nuova foto con una migliore illuminazione.");
+        resetScanner();
+      });
+    }
+    
+    function resetScanner() {
+      // Ferma lo stream video se attivo
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+      }
+      
+      // Resetta l'interfaccia
+      document.getElementById('scanner-container').classList.add('d-none');
+      document.getElementById('scan-result-container').classList.add('d-none');
+      document.getElementById('scan-processing').classList.add('d-none');
+      document.getElementById('start-scan-btn').style.display = 'block';
+      
+      // Resetta il canvas
+      const canvas = document.getElementById('canvas');
+      const context = canvas.getContext('2d');
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  </script>
+ 
+  <script>
+  // Funzione per inizializzare manualmente Bootstrap
+  function initializeBootstrap() {
+    console.log("Inizializzazione manuale di Bootstrap...");
+    
+    // Verifica se Bootstrap è disponibile
+    if (typeof bootstrap === 'undefined') {
+      console.warn("Bootstrap non rilevato, utilizzo polyfill...");
+      
+      // Crea una mini implementazione di Bootstrap.Modal
+      window.bootstrap = {
+        Modal: function(element) {
+          this.element = element;
+          this.show = function() {
+            if (element) {
+              element.style.display = 'block';
+              element.classList.add('show');
+              document.body.classList.add('modal-open');
+            }
+          };
+          this.hide = function() {
+            if (element) {
+              element.style.display = 'none';
+              element.classList.remove('show');
+              document.body.classList.remove('modal-open');
+            }
+          };
+        },
+        Tab: {
+          // Implementazione semplificata per gestire i tab
+          getInstance: function(element) {
+            return {
+              show: function() {
+                if (!element) return;
+                
+                // Trova il target del tab
+                const target = element.getAttribute('data-bs-target') || element.getAttribute('href');
+                if (!target) return;
+                
+                // Rimuovi active da tutti i tab dello stesso container
+                const parent = element.parentNode.parentNode;
+                const tabs = parent.querySelectorAll('[data-bs-toggle="tab"], [data-bs-toggle="pill"]');
+                tabs.forEach(tab => {
+                  tab.classList.remove('active');
+                  tab.setAttribute('aria-selected', 'false');
+                });
+                
+                // Attiva questo tab
+                element.classList.add('active');
+                element.setAttribute('aria-selected', 'true');
+                
+                // Nascondi tutti i contenuti dei tab
+                const tabContents = document.querySelectorAll('.tab-pane');
+                tabContents.forEach(content => {
+                  content.classList.remove('show', 'active');
+                });
+                
+                // Mostra il contenuto di questo tab
+                const tabContent = document.querySelector(target);
+                if (tabContent) {
+                  tabContent.classList.add('show', 'active');
+                }
+              }
+            };
+          }
+        }
+      };
+    }
+    
+    // Inizializza manualmente i tab
+    document.querySelectorAll('[data-bs-toggle="tab"], [data-bs-toggle="pill"]').forEach(function(tabEl) {
+      tabEl.addEventListener('click', function(event) {
+        event.preventDefault();
+        
+        try {
+          if (typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+            const tab = bootstrap.Tab.getInstance(this) || new bootstrap.Tab(this);
+            tab.show();
+          } else {
+            // Fallback semplice se bootstrap non è disponibile
+            const target = this.getAttribute('data-bs-target') || this.getAttribute('href');
+            if (target) {
+              // Rimuovi active da tutti i tab nello stesso container
+              const parent = this.parentNode.parentNode;
+              parent.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+              });
+              
+              // Attiva questo tab
+              this.classList.add('active');
+              
+              // Nascondi tutti i pannelli
+              document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.remove('show', 'active');
+              });
+              
+              // Mostra il pannello target
+              const targetPane = document.querySelector(target);
+              if (targetPane) {
+                targetPane.classList.add('show', 'active');
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Errore durante l'attivazione del tab:", error);
+        }
+      });
+    });
+    
+    // Attiva il primo tab di ogni gruppo
+    document.querySelectorAll('.nav-tabs, .nav-pills').forEach(function(tabGroup) {
+      const firstTab = tabGroup.querySelector('[data-bs-toggle="tab"], [data-bs-toggle="pill"]');
+      if (firstTab) {
+        try {
+          // Simula un clic sul primo tab
+          firstTab.click();
+        } catch (error) {
+          console.error("Errore durante l'attivazione del primo tab:", error);
+        }
+      }
+    });
+  }
+  
+  // Esegui l'inizializzazione quando il DOM è completamente caricato
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      console.log("DOM completamente caricato, inizializzazione...");
+      
+      // Inizializza Bootstrap
+      initializeBootstrap();
+      
+      // Aggiungere controlli di null a updateSimulatedDisplay
+      window.updateSimulatedDisplay = function(tipo, valore) {
+        // Protezione contro errori
+        try {
+          // Converti il valore in una stringa con padding
+          let valueStr = parseFloat(valore || 0).toFixed(3);
+          
+          // Rimuovi eventuali spazi e caratteri non numerici eccetto il punto
+          valueStr = valueStr.replace(/[^\d.]/g, '');
+          
+          // Split decimali
+          const parts = valueStr.split('.');
+          let intPart = parts[0] || '0';
+          let decPart = parts[1] || '000';
+          
+          // Aggiungi zeri a sinistra all'intero
+          intPart = intPart.padStart(5, '0');
+          
+          // Aggiungi zeri a destra ai decimali
+          decPart = decPart.padEnd(3, '0');
+          
+          // Aggiorna le cifre con controllo null
+          for (let i = 0; i < intPart.length; i++) {
+            const digitElement = document.getElementById(`${tipo}-digit-${i}`);
+            if (digitElement) { // Controlla che l'elemento esista
+              digitElement.textContent = intPart[i];
+            }
+          }
+          
+          for (let i = 0; i < decPart.length; i++) {
+            const digitElement = document.getElementById(`${tipo}-digit-${i+5}`);
+            if (digitElement) { // Controlla che l'elemento esista
+              digitElement.textContent = decPart[i];
+            }
+          }
+        } catch (error) {
+          console.error("Errore in updateSimulatedDisplay:", error);
+        }
+      };
+      
+      console.log("Inizializzazione completata.");
+    } catch (error) {
+      console.error("Errore durante l'inizializzazione:", error);
+    }
+  });
+</script>
+<?!= includeJsModal() ?>
+<?!= include('debug'); ?>
+</body>
+</html>
